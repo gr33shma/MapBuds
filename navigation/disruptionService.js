@@ -188,19 +188,23 @@ export function analyseJourneyDisruption(itinerary, alerts) {
 
   if (relevantAdvisories.length > 0) {
     return {
-      affected: true,
+      affected: false,
+      advisoryRelevant: true,
+      requiresDateCheck: true,
       source: 'service-advisory',
       severity: 'advisory',
       journeyLines,
       affectedSegments: [],
       relevantAdvisories,
       recommendation:
-        'An LTA service advisory may affect your planned journey.',
+        'An LTA service advisory is relevant to this route. Check the stated travel date and details before travelling.',
     };
   }
 
   return {
     affected: false,
+    advisoryRelevant: false,
+    requiresDateCheck: false,
     source: null,
     severity: 'normal',
     journeyLines,

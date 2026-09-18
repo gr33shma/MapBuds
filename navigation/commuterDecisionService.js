@@ -1,14 +1,11 @@
-import {
-  getPublicTransportRoute,
-} from './routingService';
+import { getPublicTransportRoute } from './routingService.js';
 
 import {
   getTrainServiceAlerts,
   analyseJourneyDisruption,
   findBestUnaffectedAlternative,
   getJourneyTrainLines,
-} from './disruptionService';
-
+} from './disruptionService.js';
 
 function getItineraries(routeData) {
   return routeData?.plan?.itineraries || [];
@@ -60,13 +57,15 @@ export async function getCommuterRecommendation({
   destination,
   oneMapAccessToken,
   ltaAccountKey,
+  departureTime = null,
 }) {
   // 1. Get normal OneMap public-transport alternatives.
   const normalRouteData = await getPublicTransportRoute(
     origin,
     destination,
     oneMapAccessToken,
-    'transit'
+    'transit',
+    departureTime
   );
 
   const normalItineraries = getItineraries(normalRouteData);
@@ -93,7 +92,7 @@ export async function getCommuterRecommendation({
   );
 
   // No relevant LTA issue: return normal journey.
-  if (!disruption.affected) {
+  if (!disruption.affected && !disruption.advisoryRelevant) {
     return {
       affected: false,
       recommendationType: 'normal',
@@ -174,7 +173,8 @@ export async function getCommuterRecommendation({
         origin,
         destination,
         oneMapAccessToken,
-        'bus'
+        'bus',
+        departureTime
       );
 
     const busItineraries =
@@ -224,7 +224,9 @@ export async function getCommuterRecommendation({
   // NOT automatically claim a reroute is required
   // until its date/station applicability is confirmed.
   return {
-    affected: true,
+    affected: false,
+    advisoryRelevant: true,
+    requiresDateCheck: true,
     recommendationType: 'advisory',
 
     route: normalRoute,

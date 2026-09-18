@@ -60,12 +60,17 @@ export async function getRoute(
  *
  * mode:
  * "transit" | "bus" | "rail"
+ *
+ * departureTime:
+ * optional "HH:MM:SS" override for testing/planned journeys.
+ * If omitted, the current time is used.
  */
 export async function getPublicTransportRoute(
   origin,
   destination,
   accessToken,
-  mode = 'transit'
+  mode = 'transit',
+  departureTime = null
 ) {
   if (!origin || !destination) {
     throw new Error('Origin and destination are required');
@@ -82,10 +87,12 @@ export async function getPublicTransportRoute(
     `${String(now.getDate()).padStart(2, '0')}-` +
     `${now.getFullYear()}`;
 
-  const time =
+  const currentTime =
     `${String(now.getHours()).padStart(2, '0')}:` +
     `${String(now.getMinutes()).padStart(2, '0')}:` +
     `${String(now.getSeconds()).padStart(2, '0')}`;
+
+  const time = departureTime || currentTime;
 
   const start = `${origin.lat},${origin.lng}`;
   const end = `${destination.lat},${destination.lng}`;
@@ -107,7 +114,9 @@ export async function getPublicTransportRoute(
   });
 
   if (!response.ok) {
-    throw new Error(`OneMap public transport routing failed: ${response.status}`);
+    throw new Error(
+      `OneMap public transport routing failed: ${response.status}`
+    );
   }
 
   return response.json();
