@@ -22,6 +22,52 @@ const LTA_KEY = process.env.EXPO_PUBLIC_LTA_KEY;
 
 const ARRIVAL_RADIUS_METERS = 50;
 
+function decodePolyline(encoded) {
+  const coordinates = [];
+
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const deltaLat =
+      result & 1 ? ~(result >> 1) : result >> 1;
+
+    lat += deltaLat;
+
+    result = 0;
+    shift = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const deltaLng =
+      result & 1 ? ~(result >> 1) : result >> 1;
+
+    lng += deltaLng;
+
+    coordinates.push([
+      lat / 1e5,
+      lng / 1e5
+    ]);
+  }
+
+  return coordinates;
+}
+
 function emojiFor(skinId) {
   return (avatarSkins.find((s) => s.id === skinId) || avatarSkins[0]).emoji;
 }
@@ -154,7 +200,38 @@ export default function MapScreen({ navigation }) {
         oneMapAccessToken: ONEMAP_TOKEN,
         ltaAccountKey: LTA_KEY,
       });
+
       setRecommendation(rec);
+
+      console.log('[MapScreen] recommendation:', rec);
+
+      // Get the route that MapBuds ultimately recommends
+      const selectedRoute = rec?.route;
+
+      // OneMap public-transport routes contain legs with legGeometry
+      const legs = selectedRoute?.legs || [];
+
+      const routeCoordinates = [];
+
+      for (const leg of legs) {
+        const points = leg?.legGeometry?.points;
+
+        if (!points) continue;
+
+        const decoded = decodePolyline(points);
+
+        routeCoordinates.push(...decoded);
+      }
+
+      if (routeCoordinates.length > 0) {
+        mapRef.current?.drawRoute(
+          routeCoordinates,
+          place.lat,
+          place.lng
+        );
+      } else {
+        console.warn('[MapScreen] No drawable route geometry found');
+      }
     } catch (err) {
       console.warn('[MapScreen] recommendation error:', err.message);
     }
@@ -257,20 +334,70 @@ export default function MapScreen({ navigation }) {
       )}
 
       {/* Recommendation card */}
+      {/* Journey recommendation */}
       {recommendation && (
         <View style={styles.recommendationCard}>
-          <Text style={styles.recommendationType}>{recommendation.recommendationType.toUpperCase()}</Text>
-          <Text style={styles.recommendationMessage}>{recommendation.message}</Text>
-          <Text style={styles.recommendationMeta}>
-            ETA: {recommendation.recommendedDurationMinutes} min
-            {recommendation.extraMinutes > 0 ? ` (+${recommendation.extraMinutes} min vs usual)` : ''}
-          </Text>
-        </View>
-      )}
+          <View style={styles.recommendationHeader}>
+            <View>
+              <Text style={styles.recommendationType}>
+                {recommendation.recommendationType === 'normal'
+                  ? 'RECOMMENDED ROUTE'
+                  : recommendation.recommendationType
+                      .replace(/-/g, ' ')
+                      .toUpperCase()}
+              </Text>
 
-      {tripAwardMessage && (
-        <View style={styles.awardBanner}>
-          <Text style={styles.awardBannerText}>{tripAwardMessage}</Text>
+              <Text style={styles.etaText}>
+                {recommendation.recommendedDurationMinutes} min
+              </Text>
+            </View>
+
+            {recommendation.extraMinutes > 0 && (
+              <Text style={styles.extraTime}>
+                +{recommendation.extraMinutes} min
+              </Text>
+            )}
+          </View>
+
+          {recommendation.journey?.length > 0 && (
+            <View style={styles.journeyRow}>
+              {recommendation.journey.map((step, index) => {
+                const isTrain =
+                  typeof step === 'string' &&
+                  (
+                    step === 'EW' ||
+                    step === 'NS' ||
+                    step === 'NE' ||
+                    step === 'CC' ||
+                    step === 'DT' ||
+                    step === 'TE' ||
+                    step === 'BP' ||
+                    step.includes('LINE')
+                  );
+
+                return (
+                  <React.Fragment key={`${step}-${index}`}>
+                    <View style={styles.transportStep}>
+                      <Text style={styles.transportIcon}>
+                        {isTrain ? '🚆' : '🚌'}
+                      </Text>
+                      <Text style={styles.transportLabel}>
+                        {step}
+                      </Text>
+                    </View>
+
+                    {index < recommendation.journey.length - 1 && (
+                      <Text style={styles.routeArrow}>→</Text>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          )}
+
+          <Text style={styles.recommendationMessage}>
+            {recommendation.message}
+          </Text>
         </View>
       )}
 
@@ -285,7 +412,7 @@ export default function MapScreen({ navigation }) {
             }}
           >
             <Text style={styles.simulateButtonText}>
-              Demo: force-complete trip to {destination.name}
+              ✓ Complete Trip
             </Text>
           </Pressable>
         )}
@@ -296,7 +423,9 @@ export default function MapScreen({ navigation }) {
             setLandmarkVisible(true);
           }}
         >
-          <Text style={styles.simulateButtonText}>Simulate landmark nearby</Text>
+          <Text style={styles.simulateButtonText}>
+            📍 Demo Landmark
+          </Text>
         </Pressable>
       </View>
 
@@ -391,7 +520,7 @@ const styles = StyleSheet.create({
   },
   recommendationCard: {
     position: 'absolute',
-    bottom: spacing.xl + 64,
+    bottom: 145,
     left: spacing.md,
     right: spacing.md,
     backgroundColor: colors.surface,
@@ -400,22 +529,70 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accentTeal,
   },
+
+  recommendationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
   recommendationType: {
     fontFamily: type.bodySemi,
     fontSize: 11,
     color: colors.accentTeal,
-    marginBottom: 4,
   },
-  recommendationMessage: {
-    fontFamily: type.body,
+
+  etaText: {
+    fontFamily: type.bodySemi,
+    fontSize: 22,
+    color: colors.accentAmber,
+    marginTop: 2,
+  },
+
+  extraTime: {
+    fontFamily: type.bodySemi,
+    fontSize: 13,
+    color: colors.accentAmber,
+  },
+
+  journeyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+
+  transportStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+
+  transportIcon: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+
+  transportLabel: {
+    fontFamily: type.bodySemi,
     fontSize: 13,
     color: colors.textPrimary,
-    marginBottom: 4,
   },
-  recommendationMeta: {
-    fontFamily: type.bodyMedium,
+
+  routeArrow: {
+    fontSize: 16,
+    color: colors.textMuted,
+    marginHorizontal: 5,
+  },
+
+  recommendationMessage: {
+    fontFamily: type.body,
     fontSize: 12,
-    color: colors.accentAmber,
+    color: colors.textPrimary,
   },
   awardBanner: {
     position: 'absolute',
@@ -434,26 +611,30 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     position: 'absolute',
-    bottom: spacing.xl,
+    bottom: 24,
     left: spacing.md,
     right: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
   },
   simulateButton: {
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: colors.accentTeal,
+    maxWidth: '48%',
   },
   demoButton: {
-    marginBottom: spacing.sm,
     borderColor: colors.accentAmber,
   },
   simulateButtonText: {
     fontFamily: type.bodySemi,
     color: colors.accentTeal,
-    fontSize: 14,
+    fontSize: 11,
+    textAlign: 'center',
   },
 });

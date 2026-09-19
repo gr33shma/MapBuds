@@ -44,6 +44,54 @@ function buildHtml({ initialLat, initialLng, meEmoji }) {
     var friendMarkers = {}; // friendId -> L.marker
     var landmarkMarkers = {}; // landmark name -> L.marker (optional, lightweight)
 
+    var routeLayer = null;
+var destinationMarker = null;
+
+function drawRoute(coordinates, destinationLat, destinationLng) {
+  // Remove the previous route if one exists
+  if (routeLayer) {
+    map.removeLayer(routeLayer);
+  }
+
+  // Remove the previous destination marker
+  if (destinationMarker) {
+    map.removeLayer(destinationMarker);
+  }
+
+  if (!coordinates || coordinates.length === 0) {
+    return;
+  }
+
+  // Draw the route
+  routeLayer = L.polyline(coordinates, {
+    weight: 6,
+    opacity: 0.9
+  }).addTo(map);
+
+  // Mark the destination
+  destinationMarker = L.marker([
+    destinationLat,
+    destinationLng
+  ]).addTo(map);
+
+  // Automatically zoom so the whole route is visible
+  map.fitBounds(routeLayer.getBounds(), {
+    padding: [40, 40]
+  });
+}
+
+function clearRoute() {
+  if (routeLayer) {
+    map.removeLayer(routeLayer);
+    routeLayer = null;
+  }
+
+  if (destinationMarker) {
+    map.removeLayer(destinationMarker);
+    destinationMarker = null;
+  }
+}
+
     function updateMyPosition(lat, lng) {
       meMarker.setLatLng([lat, lng]);
       map.panTo([lat, lng]);
@@ -76,6 +124,8 @@ function buildHtml({ initialLat, initialLng, meEmoji }) {
     window.updateMySkin = updateMySkin;
     window.upsertFriend = upsertFriend;
     window.removeFriend = removeFriend;
+    window.drawRoute = drawRoute;
+    window.clearRoute = clearRoute;
   </script>
 </body>
 </html>
@@ -101,6 +151,19 @@ const MapWebView = forwardRef(function MapWebView({ initialLat, initialLng, meSk
     },
     removeFriend(friendId) {
       webViewRef.current?.injectJavaScript(`window.removeFriend('${friendId}'); true;`);
+    },
+    drawRoute(coordinates, destinationLat, destinationLng) {
+      const coordsJson = JSON.stringify(coordinates);
+
+      webViewRef.current?.injectJavaScript(
+        `window.drawRoute(${coordsJson}, ${destinationLat}, ${destinationLng}); true;`
+      );
+    },
+
+    clearRoute() {
+      webViewRef.current?.injectJavaScript(
+        `window.clearRoute(); true;`
+      );
     },
   }));
 
