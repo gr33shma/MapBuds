@@ -10,6 +10,7 @@ import MapScreen from './screens/MapScreen';
 import CustomizeScreen from './screens/CustomizeScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import { colors } from './utils/theme';
+import { signInUser } from './services/auth';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,6 +22,10 @@ export default function App() {
     Inter_500Medium,
     Inter_600SemiBold,
   });
+
+  React.useEffect(() => {
+    signInUser().then((uid) => console.log('Signed in as:', uid));
+  }, []);
 
   if (!fontsLoaded) {
     return (
