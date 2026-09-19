@@ -9,25 +9,16 @@ import { View, ActivityIndicator } from 'react-native';
 import MapScreen from './screens/MapScreen';
 import CustomizeScreen from './screens/CustomizeScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
+import FriendsScreen from './screens/FriendsScreen';
 import { colors } from './utils/theme';
-import { signInUser } from './services/auth';
+import { UserProvider, useUser } from './context/UserContext';
 
 const Stack = createNativeStackNavigator();
 
-export default function App() {
-  const [fontsLoaded] = useFonts({
-    Baloo2_700Bold,
-    Baloo2_600SemiBold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-  });
+function AppNavigator() {
+  const { loading } = useUser();
 
-  React.useEffect(() => {
-    signInUser().then((uid) => console.log('Signed in as:', uid));
-  }, []);
-
-  if (!fontsLoaded) {
+  if (loading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator color={colors.accentAmber} size="large" />
@@ -42,7 +33,35 @@ export default function App() {
         <Stack.Screen name="Map" component={MapScreen} />
         <Stack.Screen name="Customize" component={CustomizeScreen} />
         <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
+        <Stack.Screen name="Friends" component={FriendsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  const [fontsLoaded] = useFonts({
+    Baloo2_700Bold,
+    Baloo2_600SemiBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.accentAmber} size="large" />
+      </View>
+    );
+  }
+
+  // UserProvider signs the user in anonymously and loads/creates their
+  // Firestore profile BEFORE the navigator mounts, so every screen can
+  // safely assume a signed-in user with a profile is already available.
+  return (
+    <UserProvider>
+      <AppNavigator />
+    </UserProvider>
   );
 }

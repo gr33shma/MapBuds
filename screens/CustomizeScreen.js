@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, FlatList } from 'react-native';
 import { colors, type, spacing, radius } from '../utils/theme';
-import { avatarSkins, mockUser } from '../utils/mockData';
+import { avatarSkins } from '../utils/mockData';
+import { useUser } from '../context/UserContext';
 
 export default function CustomizeScreen({ navigation }) {
-  const [selected, setSelected] = useState(mockUser.avatarSkin);
+  const { profile, uiUser, updateProfile } = useUser();
+  const [selected, setSelected] = useState(uiUser?.avatarSkin || 'fox');
 
   return (
     <View style={styles.container}>
@@ -35,7 +37,10 @@ export default function CustomizeScreen({ navigation }) {
           <View style={styles.badgesSection}>
             <Text style={styles.badgesTitle}>Your badges</Text>
             <View style={styles.badgesRow}>
-              {mockUser.badges.map((badge) => (
+              {(uiUser?.badges || []).length === 0 && (
+                <Text style={styles.noBadges}>Complete a trip to earn your first badge.</Text>
+              )}
+              {(uiUser?.badges || []).map((badge) => (
                 <View key={badge} style={styles.badgeChip}>
                   <Text style={styles.badgeChipText}>{badge}</Text>
                 </View>
@@ -48,10 +53,11 @@ export default function CustomizeScreen({ navigation }) {
       <Pressable
         style={styles.saveButton}
         onPress={() => {
-          // At integration: write `selected` to the user object in
-          // Firestore ({..., avatarSkin: selected}) instead of just
-          // popping back.
-          mockUser.avatarSkin = selected;
+          // Persists to Firestore via UserContext -> services/userProfile.js,
+          // so this now survives an app restart (it didn't before).
+          if (profile) {
+            updateProfile({ ...profile, avatarSkin: selected });
+          }
           navigation.goBack();
         }}
       >
@@ -133,6 +139,11 @@ const styles = StyleSheet.create({
   badgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+  },
+  noBadges: {
+    fontFamily: type.body,
+    fontSize: 13,
+    color: colors.textMuted,
   },
   badgeChip: {
     backgroundColor: colors.surface,

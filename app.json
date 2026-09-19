@@ -10,6 +10,14 @@
     },
     "ios": {
       "bundleIdentifier": "com.mapbuds.app"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "MapBuds uses your location to show your avatar on the map and give live directions."
+        }
+      ]
+    ]
   }
 }

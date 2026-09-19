@@ -1,12 +1,14 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { WebView } from 'react-native-webview';
-import { avatarSkins } from '../utils/mockData';
 
 // Builds the HTML page that runs inside the WebView. Leaflet + raw
-// OpenStreetMap tiles, loaded straight from a CDN — no API key, no
-// Google Cloud project, no billing account, no card required anywhere
-// in this file.
-function buildHtml({ initialLat, initialLng, meEmoji, friendEmoji }) {
+// OpenStreetMap tiles, loaded from a CDN — no API key, no billing,
+// no card required anywhere in this file.
+//
+// Friends are now dynamic: rather than one hardcoded friend marker,
+// the map keeps a JS object of markers keyed by friendId, so any
+// number of real friends (from Firebase) can be shown/removed live.
+function buildHtml({ initialLat, initialLng, meEmoji }) {
   return `
 <!DOCTYPE html>
 <html>
@@ -39,46 +41,66 @@ function buildHtml({ initialLat, initialLng, meEmoji, friendEmoji }) {
     }
 
     var meMarker = L.marker([${initialLat}, ${initialLng}], { icon: emojiIcon('${meEmoji}') }).addTo(map);
-    var friendMarker = L.marker([${initialLat}, ${initialLng}], { icon: emojiIcon('${friendEmoji}') }).addTo(map);
+    var friendMarkers = {}; // friendId -> L.marker
+    var landmarkMarkers = {}; // landmark name -> L.marker (optional, lightweight)
 
-    // Called from React Native via injectJavaScript whenever positions change.
-    function updatePositions(meLat, meLng, friendLat, friendLng) {
-      meMarker.setLatLng([meLat, meLng]);
-      friendMarker.setLatLng([friendLat, friendLng]);
-      map.panTo([meLat, meLng]);
+    function updateMyPosition(lat, lng) {
+      meMarker.setLatLng([lat, lng]);
+      map.panTo([lat, lng]);
     }
 
     function updateMySkin(emoji) {
       meMarker.setIcon(emojiIcon(emoji));
     }
 
-    window.updatePositions = updatePositions;
+    // Called once per friend per location update. Creates the marker
+    // the first time a given friendId is seen, moves it on every
+    // update after that.
+    function upsertFriend(friendId, lat, lng, emoji) {
+      if (friendMarkers[friendId]) {
+        friendMarkers[friendId].setLatLng([lat, lng]);
+      } else {
+        friendMarkers[friendId] = L.marker([lat, lng], { icon: emojiIcon(emoji) }).addTo(map);
+      }
+    }
+
+    // Called when a friend goes offline / stops sharing location.
+    function removeFriend(friendId) {
+      if (friendMarkers[friendId]) {
+        map.removeLayer(friendMarkers[friendId]);
+        delete friendMarkers[friendId];
+      }
+    }
+
+    window.updateMyPosition = updateMyPosition;
     window.updateMySkin = updateMySkin;
+    window.upsertFriend = upsertFriend;
+    window.removeFriend = removeFriend;
   </script>
 </body>
 </html>
 `;
 }
 
-// Exposes updatePositions(...) and updateMySkin(...) to the parent
-// screen via a ref, so MapScreen can drive the map the same way it
-// would drive native markers.
-const MapWebView = forwardRef(function MapWebView(
-  { initialLat, initialLng, meSkinId, friendSkinId },
-  ref
-) {
+// Exposes imperative methods to the parent screen via a ref, so
+// MapScreen can drive the map from real Firebase data.
+const MapWebView = forwardRef(function MapWebView({ initialLat, initialLng, meSkinEmoji }, ref) {
   const webViewRef = useRef(null);
-  const meEmoji = (avatarSkins.find((s) => s.id === meSkinId) || avatarSkins[0]).emoji;
-  const friendEmoji = (avatarSkins.find((s) => s.id === friendSkinId) || avatarSkins[0]).emoji;
 
   useImperativeHandle(ref, () => ({
-    updatePositions(meLat, meLng, friendLat, friendLng) {
-      webViewRef.current?.injectJavaScript(
-        `window.updatePositions(${meLat}, ${meLng}, ${friendLat}, ${friendLng}); true;`
-      );
+    updateMyPosition(lat, lng) {
+      webViewRef.current?.injectJavaScript(`window.updateMyPosition(${lat}, ${lng}); true;`);
     },
     updateMySkin(emoji) {
       webViewRef.current?.injectJavaScript(`window.updateMySkin('${emoji}'); true;`);
+    },
+    upsertFriend(friendId, lat, lng, emoji) {
+      webViewRef.current?.injectJavaScript(
+        `window.upsertFriend('${friendId}', ${lat}, ${lng}, '${emoji}'); true;`
+      );
+    },
+    removeFriend(friendId) {
+      webViewRef.current?.injectJavaScript(`window.removeFriend('${friendId}'); true;`);
     },
   }));
 
@@ -86,7 +108,7 @@ const MapWebView = forwardRef(function MapWebView(
     <WebView
       ref={webViewRef}
       originWhitelist={['*']}
-      source={{ html: buildHtml({ initialLat, initialLng, meEmoji, friendEmoji }) }}
+      source={{ html: buildHtml({ initialLat, initialLng, meEmoji: meSkinEmoji }) }}
       style={{ flex: 1, backgroundColor: 'transparent' }}
       javaScriptEnabled
       domStorageEnabled

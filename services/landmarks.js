@@ -59,7 +59,16 @@ export async function fetchNearbyLandmarks(lat, lng, opts = {}) {
 
   let data;
   try {
-    const res = await fetch(`${WIKI_API}?${params.toString()}`);
+    const res = await fetch(`${WIKI_API}?${params.toString()}`, {
+      headers: {
+        // Wikipedia's API rejects requests with no identifying header
+        // (returns 403). This is a documented Wikimedia policy, not
+        // something specific to this app — see
+        // https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
+        'User-Agent': 'MapBuds/1.0 (student hackathon project)',
+        'Api-User-Agent': 'MapBuds/1.0 (student hackathon project)',
+      },
+    });
     if (!res.ok) throw new Error(`Wikipedia API returned ${res.status}`);
     data = await res.json();
   } catch (err) {

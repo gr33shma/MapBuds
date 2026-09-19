@@ -6,7 +6,8 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCy7ET0APmwiE8aXt71pwr78lrz5Pm-WnQ",
@@ -22,4 +23,10 @@ const app = initializeApp(firebaseConfig);
 
 export const db = getDatabase(app); // Realtime Database — used for live location
 export const firestore = getFirestore(app); // Firestore — used for friends list
-export const auth = getAuth(app); // Auth — anonymous sign-in
+
+// Without this, Firebase creates a brand new anonymous user every time the
+// app restarts, wiping out XP/streak/badge continuity between sessions.
+// AsyncStorage persistence keeps the same uid across app launches.
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+});
