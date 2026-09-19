@@ -33,6 +33,14 @@ LTA's network moves millions of people daily, and disruptions (planned maintenan
 | Landmark facts | Auto-fetched from Wikipedia based on your live GPS position |
 | Leaderboard | Friends ranked by total XP |
 
+1.	Smart Route Recommendation (extra feature added later)
+MapBuds provides commuters with a recommended route from their current location to their selected destination. After the user searches for a destination, the app calculates the journey using real public-transport routing data and displays the route directly on the OpenStreetMap map. It also presents the estimated travel time and transport sequence, such as Bus 199 → EWL → Bus 97, so users can immediately understand not just where to go, but how to complete the journey.
+
+2. Live Disruption Detection & Smart Rerouting: 
+MapBuds checks LTA's live train service alerts against the train lines used in the commuter's journey. If a disruption affects the planned route, the app identifies the affected service and recommends an alternative journey, including unaffected public-transport routes or a bus fallback when necessary. It also compares the new journey with the original route and shows the additional travel time, helping commuters understand both what has changed and what they should do next.
+Note: No relevant train disruption was active during the live demonstration. The disruption-response workflow was therefore validated separately using controlled disruption scenarios.
+
+
 ## Tech stack
 
 - **React Native + Expo (SDK 57)** — cross-platform app framework, runs on iOS and Android from one codebase
